@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quil App — Quilibrium explorer + wallet</title>
+<meta name="description" content="Quil App — the Quilibrium observatory and wallet in one app. Live shard coverage, frame heartbeat, node console and a built-in wallet." />
+<meta property="og:title" content="Quil App — explorer + wallet" />
+<meta property="og:description" content="The Quilibrium observatory and wallet, in one app. Live shard coverage ring, frame heartbeat, node console, QNS and a built-in wallet." />
+<meta property="og:image" content="https://ethan-mr.github.io/quil-app-preview/download/img/01-dark-explore.png" />
+<meta property="og:type" content="website" />
+<style>
+  /* Quilscan design tokens — cosmos (mirrors the app's tokens.css) */
+  @font-face {
+    font-family: 'Space Grotesk';
+    src: url('./fonts/space-grotesk-latin-700-normal.woff2') format('woff2');
+    font-weight: 700; font-display: swap;
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('./fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+    font-weight: 400; font-display: swap;
+  }
+  :root {
+    --bg-canvas: #050510;
+    --bg-surface: #141232;
+    --bg-elevated: #1c1940;
+    --border-subtle: rgba(255,255,255,0.08);
+    --brand-300: #b98cf5; --brand-400: #9a5cf0; --brand-500: #7f42e2; --brand-600: #6330ca;
+    --text-primary: #f8fafc;
+    --text-secondary: rgba(226,232,240,0.72);
+    --text-tertiary: #64748b;
+    --state-success: #22c55e;
+    --state-attention: #f5b301;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --display: 'Space Grotesk', var(--sans);
+    --ease: cubic-bezier(.22,1,.36,1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  ::selection { background: var(--brand-500); color: #fff; }
+  a:focus-visible, .btn:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 3px; border-radius: 14px; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .wash {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(130% 70% at 50% -20%, rgba(127,66,226,0.17) 0%, rgba(127,66,226,0.05) 45%, transparent 70%);
+  }
+  .wash2 {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(40% 34% at 12% 30%, rgba(127,66,226,.10) 0%, transparent 70%);
+  }
+  .noise {
+    position: fixed; inset: 0; pointer-events: none; z-index: 2; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .grid-tex {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      radial-gradient(rgba(154,92,240,0.05) 1px, transparent 1px),
+      radial-gradient(rgba(154,92,240,0.05) 1px, transparent 1px);
+    background-size: 24px 24px, 24px 24px;
+    background-position: 0 0, 12px 12px;
+    mask-image: radial-gradient(100% 60% at 50% 0%, black 0%, transparent 80%);
+    -webkit-mask-image: radial-gradient(100% 60% at 50% 0%, black 0%, transparent 80%);
+  }
+  .page { position: relative; z-index: 3; max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+  /* entrance rhythm — rare, strong ease-out */
+  .rise { animation: rise .5s var(--ease) both; animation-delay: var(--d, 0ms); }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .rise { animation: none } }
+
+  header.top {
+    position: sticky; top: 0; z-index: 7;
+    display: flex; align-items: center; gap: 12px;
+    padding: 15px 24px; margin: 0 -24px;
+    background: rgba(5,5,16,.72);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  header.top .web {
+    margin-left: auto; font-size: 12.5px; color: var(--text-secondary); text-decoration: none;
+    border: 1px solid var(--border-subtle); border-radius: 999px; padding: 6px 14px;
+    transition: color .2s, border-color .2s;
+  }
+  header.top .web:hover { color: var(--brand-300); border-color: rgba(185,140,245,.4); }
+  .langs {
+    margin-left: auto; display: flex; align-items: center; gap: 5px;
+    color: var(--text-tertiary); cursor: pointer; transition: color .2s;
+  }
+  .langs:hover { color: var(--text-secondary); }
+  .langs svg { width: 13px; height: 13px; }
+  .langs select {
+    appearance: none; -webkit-appearance: none;
+    background: none; border: none; outline: none; cursor: pointer;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+    color: inherit; padding: 4px 0;
+  }
+  .langs + .web { margin-left: 0; }
+
+  /* ───────── hero ───────── */
+  .hero {
+    display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 40px;
+    align-items: center; padding: 44px 0 30px;
+  }
+  @media (max-width: 840px) { .hero { grid-template-columns: 1fr; padding: 20px 0 24px; gap: 52px; } }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text-tertiary);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .eyebrow .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--state-success);
+    animation: breathe 3.8s ease-in-out infinite;
+  }
+  @keyframes breathe { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+  @media (prefers-reduced-motion: reduce) { .eyebrow .dot { animation: none } }
+
+  h1 {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(46px, 7vw, 76px); letter-spacing: -0.03em; line-height: 0.94;
+    margin: 18px 0 16px;
+  }
+  h1 .accent {
+    background: linear-gradient(100deg, var(--brand-300) 10%, var(--brand-500) 45%, var(--brand-300) 90%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: sheen 9s ease-in-out infinite alternate;
+  }
+  @keyframes sheen { from { background-position: 0% 0 } to { background-position: 100% 0 } }
+  @media (prefers-reduced-motion: reduce) { h1 .accent { animation: none } }
+  .sub { color: var(--text-secondary); font-size: 16.5px; line-height: 1.7; max-width: 29em; }
+  .sub .m { font-family: var(--mono); font-size: 13.5px; color: var(--brand-300); }
+
+  .dl-row { display: flex; flex-wrap: wrap; gap: 13px; margin-top: 32px; }
+  .btn {
+    display: flex; align-items: center; gap: 12px;
+    border-radius: 14px; padding: 12px 20px; text-decoration: none;
+    transition: transform .14s var(--ease), background-color .2s, box-shadow .25s;
+    border: 1px solid var(--border-subtle);
+  }
+  .btn:active { transform: scale(.98); }
+  .btn .ic { width: 25px; height: 25px; flex: none; }
+  .btn small { display: block; font-size: 10.5px; opacity: .75; letter-spacing: .02em; }
+  .btn b { display: block; font-size: 15.5px; letter-spacing: -0.01em; }
+  .btn-apk {
+    background: var(--brand-600); color: #fff; border-color: transparent;
+    box-shadow: 0 14px 38px -14px rgba(99,48,202,.65), inset 0 1px 0 rgba(255,255,255,.14);
+  }
+  .btn-apk { position: relative; overflow: hidden; }
+  .btn-apk::before {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 46%; left: -60%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.22), transparent);
+    transform: skewX(-18deg); transition: left .55s var(--ease);
+  }
+  .btn-apk:hover::before { left: 130%; }
+  .btn-apk:hover { background: var(--brand-500); transform: translateY(-1.5px); }
+  .btn-store { background: var(--bg-surface); color: var(--text-primary); }
+  .btn-store:hover { background: var(--bg-elevated); transform: translateY(-1.5px); }
+  .btn-store .soon {
+    font-family: var(--mono); font-size: 9px; color: var(--state-attention);
+    border: 1px solid rgba(245,179,1,.3); border-radius: 999px; padding: 2px 7px; margin-left: 6px;
+  }
+  .ticker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+  .ticker .t {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+    color: var(--text-secondary); border: 1px solid var(--border-subtle);
+    border-radius: 999px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(20,18,50,.5);
+  }
+  .ticker .t i {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--brand-300);
+    animation: breathe 3.8s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) { .ticker .t i { animation: none } }
+  .apk-meta { font-family: var(--mono); font-size: 10.5px; color: var(--text-tertiary); margin-top: 14px; }
+  .apk-meta .sep { opacity: .4; margin: 0 6px; }
+
+  /* ── dual-phone composition ── */
+  .stage { position: relative; display: flex; justify-content: center; min-height: 560px; align-items: center; }
+  .stage .halo {
+    position: absolute; inset: 6% -8% 4% -8%; pointer-events: none;
+    background: radial-gradient(52% 46% at 55% 46%, rgba(127,66,226,.32) 0%, rgba(127,66,226,.08) 55%, transparent 75%);
+    filter: blur(2px);
+  }
+  .stage .orbit {
+    position: absolute; width: 520px; height: 520px; top: 50%; left: 55%;
+    transform: translate(-50%, -50%); pointer-events: none; opacity: .55;
+  }
+  .phone {
+    width: min(268px, 62vw); border-radius: 40px; padding: 9px;
+    background: #0b0918;
+    border: 1px solid rgba(255,255,255,0.09);
+    box-shadow:
+      0 44px 90px -32px rgba(2,6,23,.9),
+      0 0 0 1px rgba(154,92,240,0.12),
+      inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .phone { position: relative; }
+  .phone::after {
+    content: ''; position: absolute; inset: 9px; border-radius: 31px; pointer-events: none;
+    background: linear-gradient(128deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 22%, transparent 40%);
+  }
+  .phone img { display: block; width: 100%; border-radius: 31px; }
+  .stage::after {
+    content: ''; position: absolute; left: 50%; bottom: -6px; width: 74%; height: 46px;
+    transform: translateX(-46%); border-radius: 50%;
+    background: radial-gradient(50% 50% at 50% 50%, rgba(99,48,202,.35), transparent 70%);
+    filter: blur(14px); pointer-events: none;
+  }
+  .phone.main { position: relative; z-index: 2; animation: floaty 7s ease-in-out infinite; }
+  .phone.ghost {
+    position: absolute; z-index: 1; width: min(228px, 52vw);
+    right: 2%; top: 9%; transform: rotate(8deg) translateX(26%);
+    opacity: .92;
+  }
+  @media (max-width: 460px) { .phone.ghost { display: none } }
+  @keyframes floaty { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
+  @media (prefers-reduced-motion: reduce) { .phone.main { animation: none } }
+
+  /* ───────── stats band ───────── */
+  .band {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle);
+    margin: 34px 0 56px;
+  }
+  @media (max-width: 720px) { .band { grid-template-columns: repeat(2, 1fr) } }
+  .band > div { padding: 16px 18px; border-left: 1px solid var(--border-subtle); min-width: 0; transition: background-color .25s; }
+  .band > div:hover { background: rgba(255,255,255,.02); }
+  .band > div:first-child { border-left: 0 }
+  @media (max-width: 720px) { .band > div:nth-child(3) { border-left: 0 } .band > div:nth-child(n+3) { border-top: 1px solid var(--border-subtle) } }
+  .band .v { font-family: var(--display); font-weight: 700; font-size: 30px; letter-spacing: -0.02em; }
+  .band .v em { font-style: normal; color: var(--brand-300); }
+  .band .k { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+
+  /* ───────── sections ───────── */
+  .sec-eyebrow {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--text-tertiary); margin-bottom: 14px; display: flex; align-items: center; gap: 10px;
+  }
+  .sec-eyebrow::after { content: ''; flex: 1; height: 1px; background: var(--border-subtle); }
+
+  .features { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; padding-bottom: 62px; }
+  .feat.w4 { grid-column: span 4; display: grid; grid-template-columns: 1.2fr .8fr; gap: 12px; align-items: center; }
+  .feat.w2 { grid-column: span 2; }
+  @media (max-width: 840px) {
+    .features { grid-template-columns: 1fr; }
+    .feat.w4, .feat.w2 { grid-column: span 1; }
+    .feat.w4 { grid-template-columns: 1fr; }
+  }
+  .mini-ring { width: 100%; max-width: 190px; margin: 0 auto; display: block; }
+  .term {
+    background: rgba(5,5,16,.75); border: 1px solid var(--border-subtle); border-radius: 12px;
+    padding: 12px 14px; font-family: var(--mono); font-size: 10px; line-height: 1.9;
+    color: var(--text-secondary); overflow: hidden; white-space: nowrap;
+  }
+  .term .ok { color: var(--state-success); }
+  .term .warn { color: var(--state-attention); }
+  .term .dim { color: var(--text-tertiary); }
+  .feat {
+    position: relative; overflow: hidden;
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    border-radius: 18px; padding: 20px 18px 18px;
+    transition: transform .22s var(--ease), border-color .25s;
+  }
+  .feat::before {
+    content: ''; position: absolute; inset: 0 0 auto 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(185,140,245,.5), transparent);
+    opacity: 0; transition: opacity .25s;
+  }
+  .feat:hover { transform: translateY(-3px); border-color: rgba(154,92,240,.3); }
+  .feat:hover .glyph { box-shadow: 0 0 20px rgba(154,92,240,.35); }
+  .feat .glyph { transition: box-shadow .3s; }
+  .feat:hover::before { opacity: 1 }
+  .feat .glyph {
+    width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    background: rgba(127,66,226,.14); margin-bottom: 12px;
+  }
+  .feat .glyph svg { width: 17px; height: 17px; stroke: var(--brand-300); }
+  .feat h3 { font-size: 14.5px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .feat p { font-size: 12px; color: var(--text-tertiary); line-height: 1.65; }
+
+  /* ───────── screens gallery ───────── */
+  .shots { display: flex; gap: 22px; justify-content: center; flex-wrap: wrap; padding-bottom: 66px; }
+  .shot { text-align: center; }
+  .shot .mini {
+    width: min(236px, 60vw); border-radius: 26px; padding: 6px;
+    background: #0b0918; border: 1px solid rgba(255,255,255,0.09);
+    box-shadow: 0 26px 60px -28px rgba(2,6,23,.85);
+    transition: transform .25s var(--ease), box-shadow .3s;
+  }
+  .shot:nth-child(1) .mini { transform: rotate(-2.5deg) }
+  .shot:nth-child(3) .mini { transform: rotate(2.5deg) }
+  .shot .mini:hover { transform: translateY(-6px) rotate(0deg); box-shadow: 0 34px 70px -26px rgba(99,48,202,.5); }
+  .shot img { display: block; width: 100%; border-radius: 20px; }
+  .shot figcaption { font-family: var(--mono); font-size: 10px; color: var(--text-tertiary); margin-top: 12px; letter-spacing: .08em; }
+
+  /* ───────── bottom cta ───────── */
+  .cta {
+    text-align: center; border: 1px solid var(--border-subtle); border-radius: 24px;
+    padding: 44px 24px; margin-bottom: 56px; position: relative; overflow: hidden;
+    background: linear-gradient(180deg, rgba(127,66,226,.10), rgba(20,18,50,.4));
+  }
+  .cta-orbit {
+    position: absolute; width: 560px; height: 560px; left: 50%; top: 50%;
+    transform: translate(-50%, -46%); pointer-events: none; opacity: .6;
+  }
+  .cta h2, .cta p, .cta .dl-row { position: relative; }
+  .cta h2 { font-family: var(--display); font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.02em; margin-bottom: 10px; }
+  .cta p { color: var(--text-tertiary); font-size: 13px; margin-bottom: 24px; }
+  .cta .dl-row { justify-content: center; margin-top: 0; }
+
+  .ghost-mark {
+    font-family: var(--display); font-weight: 700; text-align: center;
+    font-size: clamp(72px, 13vw, 150px); letter-spacing: -0.045em; line-height: 1;
+    background: linear-gradient(180deg, rgba(154,92,240,.14), rgba(154,92,240,0));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    user-select: none; margin-bottom: -12px;
+  }
+  footer {
+    border-top: 1px solid var(--border-subtle);
+    padding: 22px 0 44px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 11px; color: var(--text-tertiary);
+  }
+  footer a { color: var(--text-secondary); text-decoration: none; }
+  footer a:hover { color: var(--brand-300); }
+</style>
+</head>
+<body>
+<div class="wash"></div>
+<div class="wash2"></div>
+<div class="grid-tex"></div>
+<div class="noise"></div>
+<div class="page">
+
+  <header class="top rise" style="--d:0ms">
+    <img src="../quilscan-icon.png" alt="" width="28" height="28" />
+    <img src="../quilscan-logo.png" alt="Quilscan" height="16" style="height:16px;width:auto" />
+    <label class="langs" aria-label="Language">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18M12 3a15 15 0 000 18" stroke-linecap="round"/>
+      </svg>
+      <select id="lang-sel">
+        <option value="en">EN</option>
+        <option value="zh-Hant">繁體</option>
+        <option value="fr">FR</option>
+        <option value="ja">JA</option>
+      </select>
+    </label>
+    <a class="web" href="../?app=1"><span data-i18n="headerWeb">Open Web App</span> →</a>
+  </header>
+
+  <section class="hero">
+    <div>
+      <div class="eyebrow rise" style="--d:40ms"><span class="dot"></span>network coverage — live</div>
+      <h1 class="rise" style="--d:80ms">Quil App<br /><span class="accent">explorer + wallet</span></h1>
+      <p class="sub rise" style="--d:130ms" data-i18n-html="sub">
+        The Quilibrium observatory and wallet, in one app. Live shard coverage
+        ring, frame heartbeat, node console, QNS and a built-in wallet —
+        <span class="m">an instrument, not a decoration.</span>
+      </p>
+
+      <div class="dl-row rise" style="--d:180ms">
+        <a class="btn btn-apk" href="../?app=1">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18M12 3a15 15 0 000 18" stroke-linecap="round"/>
+          </svg>
+          <span><small data-i18n="webSmall">No install needed</small><b data-i18n="webBig">Open Web App</b></span>
+        </a>
+        <a class="btn btn-store" href="#" aria-disabled="true" onclick="return false">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10 5h4M7 17h10" stroke-linecap="round"/>
+          </svg>
+          <span><small>Android</small><b data-i18n="apkBig">APK Download <span class="soon">Coming soon</span></b></span>
+        </a>
+        <a class="btn btn-store" href="#" aria-disabled="true" onclick="return false">
+          <svg class="ic" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.05 20.28c-.98.95-2.05.86-3.08.38-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.38C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.79.79.05 2.28-.8 3.85-.68 1.6.13 2.8.77 3.6 1.94-3.23 1.94-2.7 6.28.47 7.55-.63 1.34-1.42 2.66-3 3.37zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+          </svg>
+          <span><small>iPhone · iPad</small><b>App Store <span class="soon" data-i18n="soon">Coming soon</span></b></span>
+        </a>
+      </div>
+      <div class="ticker rise" style="--d:210ms">
+        <span class="t"><i></i>F 4,512,390</span>
+        <span class="t">142 PEERS</span>
+        <span class="t">49/64 SHARDS</span>
+        <span class="t">EPOCH 214</span>
+      </div>
+
+    </div>
+
+    <div class="stage rise" style="--d:160ms">
+      <div class="halo"></div>
+      <!-- decorative orbit ring (signature motif, quiet) -->
+      <svg class="orbit" viewBox="0 0 440 440" aria-hidden="true">
+        <circle cx="220" cy="220" r="196" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+        <circle cx="220" cy="220" r="214" fill="none" stroke="rgba(154,92,240,.16)" stroke-width="10"
+          stroke-dasharray="14 8"/>
+      </svg>
+      <div class="phone main"><img src="./img/01-dark-explore.png" alt="Quil App — Explore 首页(暗色)" /></div>
+      <div class="phone ghost"><img src="./img/06-light-explore.png" alt="Quil App — Explore 首页(亮色)" loading="lazy" /></div>
+    </div>
+  </section>
+
+  <section class="band rise" style="--d:60ms">
+    <div><div class="v"><em>LIVE</em></div><div class="k" data-i18n="band1">the network's heartbeat, frame by frame</div></div>
+    <div><div class="v"><em>3</em>-in-1</div><div class="k" data-i18n="band2">explorer · wallet · node console, one app</div></div>
+    <div><div class="v"><em>100%</em></div><div class="k" data-i18n="band3">self-custody — keys never leave your device</div></div>
+    <div><div class="v"><em>0</em></div><div class="k" data-i18n="band4">tracking or ads — nothing leaves your phone</div></div>
+  </section>
+
+  <section>
+    <div class="sec-eyebrow">features</div>
+    <div class="features">
+      <div class="feat w4">
+        <div>
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9" stroke-dasharray="4 3"/><circle cx="12" cy="12" r="3.5"/></svg></div>
+          <h3 data-i18n="f1t">Live coverage ring</h3>
+          <p data-i18n="f1b">A live readout of the 64-slot shard layer — frame light-waves, breathing core, the same signature visual as quilscan. Healthy stays neutral ink; only anomalies light up.</p>
+        </div>
+        <svg class="mini-ring" viewBox="0 0 200 200" aria-hidden="true">
+          <circle cx="100" cy="100" r="66" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+          <circle cx="100" cy="100" r="78" fill="none" stroke="#322c4c" stroke-width="9" stroke-dasharray="8 4"/>
+          <circle cx="100" cy="100" r="78" fill="none" stroke="#f5b301" stroke-width="9" stroke-dasharray="8 226" stroke-dashoffset="-46"/>
+          <circle cx="100" cy="100" r="78" fill="none" stroke="#ef4444" stroke-width="9" stroke-dasharray="8 482" stroke-dashoffset="-170"/>
+          <circle cx="100" cy="100" r="34" fill="rgba(127,66,226,.28)"/>
+          <circle cx="100" cy="100" r="44" fill="none" stroke="rgba(154,92,240,.3)" stroke-width="5"/>
+          <text x="100" y="104" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" fill="#f8fafc">85.7%</text>
+        </svg>
+      </div>
+      <div class="feat w2">
+        <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 12h4l2-6 4 12 2-6h6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3 data-i18n="f2t">Full explorer</h3>
+        <p data-i18n="f2b">Network, Frames, Shards, Peers, Map and QNS — full parity with the quilscan site.</p>
+      </div>
+      <div class="feat w2">
+        <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M16 12.5h.5M3 10h18" stroke-linecap="round"/></svg></div>
+        <h3 data-i18n="f3t">Built-in wallet</h3>
+        <p data-i18n="f3b">Balance, transfer lifecycle, UTXO coin management and faucet. Unconfirmed never renders as success.</p>
+      </div>
+      <div class="feat w4">
+        <div>
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M5 7l4 4-4 4M11 15h8" stroke-linecap="round" stroke-linejoin="round"/><rect x="2" y="3" width="20" height="18" rx="3"/></svg></div>
+          <h3 data-i18n="f4t">Node console</h3>
+          <p data-i18n="f4b">Manage your node through the Quilscan Agent: start/stop, logs, resource sparklines and multi-agent pairing.</p>
+        </div>
+        <div class="term" aria-hidden="true">
+          <div><span class="dim">12:41:02</span> <span class="ok">INF</span> frame received height=4512390</div>
+          <div><span class="dim">12:41:02</span> <span class="ok">INF</span> prover slot confirmed ring=1</div>
+          <div><span class="dim">12:39:58</span> <span class="warn">WRN</span> peer Qm…b0672a slow ack 412ms</div>
+          <div><span class="dim">12:39:20</span> <span class="ok">INF</span> mesh sync ok · 49 shards tracked</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-eyebrow">screens</div>
+    <div class="shots">
+      <figure class="shot">
+        <div class="mini"><img src="./img/02-dark-home.png" alt="钱包首页" loading="lazy" /></div>
+        <figcaption>wallet · balance &amp; lifecycle</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="mini"><img src="./img/01-dark-explore.png" alt="Explore 暗色" loading="lazy" /></div>
+        <figcaption>explore · coverage ring</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="mini"><img src="./img/06-light-explore.png" alt="Explore 亮色" loading="lazy" /></div>
+        <figcaption>light theme · fresh paper</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="cta">
+    <svg class="cta-orbit" viewBox="0 0 440 440" aria-hidden="true">
+      <circle cx="220" cy="220" r="200" fill="none" stroke="rgba(154,92,240,.14)" stroke-width="10" stroke-dasharray="14 8"/>
+      <circle cx="220" cy="220" r="176" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+    </svg>
+    <h2 data-i18n="ctaH">Put the observatory in your pocket</h2>
+    <p data-i18n="ctaP">Preview build · all data is simulated</p>
+    <div class="dl-row">
+      <a class="btn btn-apk" href="../?app=1">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18M12 3a15 15 0 000 18" stroke-linecap="round"/>
+        </svg>
+        <span><small data-i18n="webSmall">No install needed</small><b data-i18n="webBig">Open Web App</b></span>
+      </a>
+      <a class="btn btn-store" href="#" aria-disabled="true" onclick="return false">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10 5h4M7 17h10" stroke-linecap="round"/>
+        </svg>
+        <span><small>Android</small><b data-i18n="apkBig">APK Download <span class="soon" data-i18n="soon">Coming soon</span></b></span>
+      </a>
+      <a class="btn btn-store" href="#" aria-disabled="true" onclick="return false">
+        <svg class="ic" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.05 20.28c-.98.95-2.05.86-3.08.38-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.38C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.79.79.05 2.28-.8 3.85-.68 1.6.13 2.8.77 3.6 1.94-3.23 1.94-2.7 6.28.47 7.55-.63 1.34-1.42 2.66-3 3.37zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+        </svg>
+        <span><small>iPhone · iPad</small><b>App Store <span class="soon" data-i18n="soon">Coming soon</span></b></span>
+      </a>
+    </div>
+  </section>
+
+  <div class="ghost-mark" aria-hidden="true">Quil App</div>
+
+  <footer>
+    <span>Quilscan · Quil App</span>
+    <a href="https://quilscan.com" target="_blank" rel="noopener">quilscan.com</a>
+    <a href="../?app=1">Web App</a>
+  </footer>
+</div>
+<script>
+(function () {
+  var I = {
+    en: {
+      headerWeb: 'Open Web App',
+      sub: 'The Quilibrium observatory and wallet, in one app. Live shard coverage ring, frame heartbeat, node console, QNS and a built-in wallet — <span class="m">an instrument, not a decoration.</span>',
+      webSmall: 'No install needed', webBig: 'Open Web App',
+      apkBig: 'APK Download <span class="soon">Coming soon</span>', soon: 'Coming soon',
+      band1: "the network's heartbeat, frame by frame", band2: 'explorer · wallet · node console, one app',
+      band3: 'self-custody — keys never leave your device', band4: 'tracking or ads — nothing leaves your phone',
+      f1t: 'Live coverage ring', f1b: 'A live readout of the 64-slot shard layer — frame light-waves, breathing core, the same signature visual as quilscan. Healthy stays neutral ink; only anomalies light up.',
+      f2t: 'Full explorer', f2b: 'Network, Frames, Shards, Peers, Map and QNS — full parity with the quilscan site.',
+      f3t: 'Built-in wallet', f3b: 'Balance, transfer lifecycle, UTXO coin management and faucet. Unconfirmed never renders as success.',
+      f4t: 'Node console', f4b: 'Manage your node through the Quilscan Agent: start/stop, logs, resource sparklines and multi-agent pairing.',
+      ctaH: 'Put the observatory in your pocket', ctaP: 'Preview build · all data is simulated'
+    },
+    'zh-Hant': {
+      headerWeb: '開啟 Web 版',
+      sub: 'Quilibrium 網路觀測台與錢包,合為一個 App。即時分片覆蓋環、幀心跳、節點控制台、QNS 與內建錢包 —— <span class="m">是儀器,不是裝飾。</span>',
+      webSmall: '無需安裝', webBig: '開啟 Web 版',
+      apkBig: 'APK 下載 <span class="soon">即將上架</span>', soon: '即將上架',
+      band1: '逐幀更新的即時網路心跳', band2: '瀏覽器 · 錢包 · 節點控制台,一個 App',
+      band3: '自我託管 —— 私鑰永不離開裝置', band4: '零追蹤零廣告 —— 資料不離開手機',
+      f1t: '即時覆蓋環', f1b: '64 位分片層即時讀數,幀到達光波與呼吸核 —— 主站同源的簽名圖形。健康段中性墨,只有異常點亮。',
+      f2t: '完整瀏覽器', f2b: 'Network、Frames、Shards、Peers、Map、QNS,與主站資訊架構對等。',
+      f3t: '內建錢包', f3b: '餘額、轉帳生命週期、UTXO 幣管理與水龍頭,提交未確認永不顯示為成功。',
+      f4t: '節點控制台', f4b: '透過 Quilscan Agent 管理節點:啟停、日誌、資源火花線與多代理綁定。',
+      ctaH: '把觀測台裝進口袋', ctaP: '預覽版 · 全部資料為模擬資料'
+    },
+    fr: {
+      headerWeb: 'Ouvrir la version Web',
+      sub: "L\u2019observatoire Quilibrium et le portefeuille, r\u00e9unis dans une seule app. Anneau de couverture des shards en direct, battement de trames, console de n\u0153ud, QNS et portefeuille int\u00e9gr\u00e9 — <span class=\"m\">un instrument, pas une d\u00e9coration.</span>",
+      webSmall: 'Sans installation', webBig: 'Ouvrir la version Web',
+      apkBig: 'T\u00e9l\u00e9charger l\u2019APK <span class="soon">Bient\u00f4t disponible</span>', soon: 'Bient\u00f4t disponible',
+      band1: 'le battement du r\u00e9seau, trame par trame', band2: 'explorateur · portefeuille · console de n\u0153ud, une seule app',
+      band3: 'auto-conservation — vos cl\u00e9s restent sur votre appareil', band4: 'ni tra\u00e7age ni publicit\u00e9 — rien ne quitte votre t\u00e9l\u00e9phone',
+      f1t: 'Anneau de couverture en direct', f1b: 'Lecture en direct de la couche de 64 shards — ondes de trames, c\u0153ur respirant, le visuel signature de quilscan. Le sain reste neutre ; seules les anomalies s\u2019allument.',
+      f2t: 'Explorateur complet', f2b: 'Network, Frames, Shards, Peers, Map et QNS — parit\u00e9 compl\u00e8te avec le site quilscan.',
+      f3t: 'Portefeuille int\u00e9gr\u00e9', f3b: 'Solde, cycle de vie des transferts, gestion des UTXO et robinet. Le non-confirm\u00e9 ne s\u2019affiche jamais comme r\u00e9ussi.',
+      f4t: 'Console de n\u0153ud', f4b: 'G\u00e9rez votre n\u0153ud via le Quilscan Agent : d\u00e9marrage/arr\u00eat, journaux, ressources et multi-agents.',
+      ctaH: 'L\u2019observatoire dans votre poche', ctaP: 'Version pr\u00e9liminaire · donn\u00e9es simul\u00e9es'
+    },
+    ja: {
+      headerWeb: 'Web \u7248\u3092\u958b\u304f',
+      sub: 'Quilibrium \u30cd\u30c3\u30c8\u30ef\u30fc\u30af\u89b3\u6e2c\u53f0\u3068\u30a6\u30a9\u30ec\u30c3\u30c8\u3092\u3001\u3072\u3068\u3064\u306e\u30a2\u30d7\u30ea\u306b\u3002\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u306e\u30b7\u30e3\u30fc\u30c9\u30ab\u30d0\u30ec\u30c3\u30b8\u30ea\u30f3\u30b0\u3001\u30d5\u30ec\u30fc\u30e0\u30cf\u30fc\u30c8\u30d3\u30fc\u30c8\u3001\u30ce\u30fc\u30c9\u30b3\u30f3\u30bd\u30fc\u30eb\u3001QNS\u3001\u5185\u8535\u30a6\u30a9\u30ec\u30c3\u30c8 —— <span class="m">\u88c5\u98fe\u3067\u306f\u306a\u304f\u3001\u8a08\u5668\u3067\u3059\u3002</span>',
+      webSmall: '\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u4e0d\u8981', webBig: 'Web \u7248\u3092\u958b\u304f',
+      apkBig: 'APK \u30c0\u30a6\u30f3\u30ed\u30fc\u30c9 <span class="soon">\u8fd1\u65e5\u516c\u958b</span>', soon: '\u8fd1\u65e5\u516c\u958b',
+      band1: '\u30d5\u30ec\u30fc\u30e0\u3054\u3068\u306b\u523b\u3080\u30cd\u30c3\u30c8\u30ef\u30fc\u30af\u306e\u9f13\u52d5', band2: '\u30a8\u30af\u30b9\u30d7\u30ed\u30fc\u30e9\u30fc · \u30a6\u30a9\u30ec\u30c3\u30c8 · \u30ce\u30fc\u30c9\u30b3\u30f3\u30bd\u30fc\u30eb\u3092\u3072\u3068\u3064\u306b',
+      band3: '\u30bb\u30eb\u30d5\u30ab\u30b9\u30c8\u30c7\u30a3 —— \u9375\u306f\u7aef\u672b\u304b\u3089\u51fa\u307e\u305b\u3093', band4: '\u30c8\u30e9\u30c3\u30ad\u30f3\u30b0\u30fb\u5e83\u544a\u30bc\u30ed —— \u30c7\u30fc\u30bf\u306f\u5916\u306b\u51fa\u307e\u305b\u3093',
+      f1t: '\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u30ab\u30d0\u30ec\u30c3\u30b8\u30ea\u30f3\u30b0', f1b: '64 \u30b9\u30ed\u30c3\u30c8\u306e\u30b7\u30e3\u30fc\u30c9\u5c64\u3092\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u306b\u8aad\u307f\u53d6\u308b —— \u30d5\u30ec\u30fc\u30e0\u5149\u6ce2\u3068\u547c\u5438\u30b3\u30a2\u3001quilscan \u3068\u540c\u6e90\u306e\u30b7\u30b0\u30cd\u30c1\u30e3\u30d3\u30b8\u30e5\u30a2\u30eb\u3002\u5065\u5eb7\u306f\u30cb\u30e5\u30fc\u30c8\u30e9\u30eb\u3001\u7570\u5e38\u306e\u307f\u70b9\u706f\u3002',
+      f2t: '\u30d5\u30eb\u30a8\u30af\u30b9\u30d7\u30ed\u30fc\u30e9\u30fc', f2b: 'Network\u3001Frames\u3001Shards\u3001Peers\u3001Map\u3001QNS —— \u672c\u7ad9\u3068\u540c\u7b49\u3002',
+      f3t: '\u5185\u8535\u30a6\u30a9\u30ec\u30c3\u30c8', f3b: '\u6b8b\u9ad8\u3001\u9001\u91d1\u30e9\u30a4\u30d5\u30b5\u30a4\u30af\u30eb\u3001UTXO \u7ba1\u7406\u3001\u30d5\u30a9\u30fc\u30bb\u30c3\u30c8\u3002\u672a\u78ba\u8a8d\u306f\u6c7a\u3057\u3066\u6210\u529f\u3068\u8868\u793a\u3055\u308c\u307e\u305b\u3093\u3002',
+      f4t: '\u30ce\u30fc\u30c9\u30b3\u30f3\u30bd\u30fc\u30eb', f4b: 'Quilscan Agent \u3067\u30ce\u30fc\u30c9\u3092\u7ba1\u7406\uff1a\u8d77\u52d5/\u505c\u6b62\u3001\u30ed\u30b0\u3001\u30ea\u30bd\u30fc\u30b9\u3001\u30de\u30eb\u30c1\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\u3002',
+      ctaH: '\u89b3\u6e2c\u53f0\u3092\u30dd\u30b1\u30c3\u30c8\u306b', ctaP: '\u30d7\u30ec\u30d3\u30e5\u30fc\u7248 · \u3059\u3079\u3066\u306e\u30c7\u30fc\u30bf\u306f\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3'
+    }
+  };
+  var KEY = 'quil-dl-lang';
+  function detect() {
+    try { var st = localStorage.getItem(KEY); if (st && I[st]) return st; } catch (e) {}
+    var n = (navigator.language || 'en').toLowerCase();
+    if (n.indexOf('zh-tw') === 0 || n.indexOf('zh-hk') === 0 || n.indexOf('zh-hant') === 0) return 'zh-Hant';
+    if (n.indexOf('fr') === 0) return 'fr';
+    if (n.indexOf('ja') === 0) return 'ja';
+    return 'en';
+  }
+  function apply(lang) {
+    var d = I[lang] || I.en;
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var v = d[el.getAttribute('data-i18n')];
+      if (v != null) el.innerHTML = v;
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(function (el) {
+      var v = d[el.getAttribute('data-i18n-html')];
+      if (v != null) el.innerHTML = v;
+    });
+    document.documentElement.lang = lang === 'zh-Hant' ? 'zh-Hant' : lang;
+    var sel = document.getElementById('lang-sel');
+    if (sel) sel.value = lang;
+    try { localStorage.setItem(KEY, lang); } catch (e) {}
+  }
+  var sel = document.getElementById('lang-sel');
+  if (sel) sel.addEventListener('change', function () { apply(sel.value); });
+  apply(detect());
+})();
+</script>
+</body>
+</html>
