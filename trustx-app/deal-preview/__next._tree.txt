@@ -1,0 +1,3 @@
+:HL["/quil-app-preview/trustx-app/_next/static/chunks/0tgt-_i5wpz6r.css","style"]
+:HL["/quil-app-preview/trustx-app/_next/static/chunks/001rxxug2a9i5.css","style"]
+0:{"tree":{"name":"","param":null,"prefetchHints":16,"slots":{"children":{"name":"deal-preview","param":null,"prefetchHints":0,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}}}},"staleTime":300,"buildId":"GSNtuVafwPouoff1fFZc7"}
